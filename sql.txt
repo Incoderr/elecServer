@@ -1,0 +1,36 @@
+-- Создайте таблицы (упростённо)
+create table users (
+  id uuid primary key default gen_random_uuid(),
+  username text unique not null,
+  password text not null
+);
+
+create table servers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  owner_id uuid references users(id),
+  invite_code text unique
+);
+
+create table server_members (
+  id uuid primary key default gen_random_uuid(),
+  server_id uuid references servers(id),
+  user_id uuid references users(id)
+);
+
+create table channels (
+  id uuid primary key default gen_random_uuid(),
+  server_id uuid references servers(id),
+  name text not null,
+  type text not null default 'text'
+);
+
+create table messages (
+  id uuid primary key default gen_random_uuid(),
+  server_id uuid references servers(id),
+  channel_id uuid references channels(id),
+  user_id uuid references users(id),
+  username text,
+  content text,
+  created_at timestamptz default now()
+);
