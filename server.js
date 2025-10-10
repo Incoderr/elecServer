@@ -267,6 +267,37 @@ app.get("/api/user/servers", async (req, res) => {
   }
 });
 
+app.get("/api/servers/:id/members", async (req, res) => {
+  const serverId = req.params.id;
+  try {
+    // сначала получаем user_id из server_members
+    const { data: memberships, error: memErr } = await supabase
+      .from("server_members")
+      .select("user_id")
+      .eq("server_id", serverId);
+
+    if (memErr) throw memErr;
+
+    const userIds = (memberships || []).map((m) => m.user_id);
+    if (userIds.length === 0) {
+      return res.json({ members: [] });
+    }
+
+    // затем получаем данные пользователей
+    const { data: users, error: userErr } = await supabase
+      .from("users")
+      .select("id, username, avatar, avatar_url, status, online")
+      .in("id", userIds);
+
+    if (userErr) throw userErr;
+
+    return res.json({ members: users || [] });
+  } catch (err) {
+    console.error("GET /api/servers/:id/members error", err);
+    return res.status(500).json({ message: "Ошибка получения участников" });
+  }
+});
+
 // Socket.IO: join room and persist messages
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
