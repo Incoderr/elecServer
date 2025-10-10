@@ -270,30 +270,49 @@ app.get("/api/user/servers", async (req, res) => {
 app.get("/api/servers/:id/members", async (req, res) => {
   const serverId = req.params.id;
   try {
-    // сначала получаем user_id из server_members
+    // Получаем user_id из server_members
     const { data: memberships, error: memErr } = await supabase
       .from("server_members")
       .select("user_id")
       .eq("server_id", serverId);
 
-    if (memErr) throw memErr;
+    if (memErr) {
+      console.error("memberships query error:", memErr);
+      return res.status(500).json({ message: "DB error reading memberships" });
+    }
 
-    const userIds = (memberships || []).map((m) => m.user_id);
+    const userIds = (memberships || [])
+      .map((m) => m.user_id)
+      .filter(Boolean);
+
     if (userIds.length === 0) {
       return res.json({ members: [] });
     }
 
-    // затем получаем данные пользователей
-    const { data: users, error: userErr } = await supabase
-      .from("users")
-      .select("id, username, avatar, avatar_url, status, online")
-      .in("id", userIds);
+    // dedupe & normalize
+    const uniq = [...new Set(userIds.map((id) => String(id)))];
 
-    if (userErr) throw userErr;
+    // chunking to avoid too-large IN(...) queries
+    const chunkSize = 100;
+    let users = [];
+    for (let i = 0; i < uniq.length; i += chunkSize) {
+      const chunk = uniq.slice(i, i + chunkSize);
+      const { data: chunkUsers, error: userErr } = await supabase
+        .from("users")
+        .select("id, username, avatar, avatar_url, status, online")
+        .in("id", chunk);
 
-    return res.json({ members: users || [] });
+      if (userErr) {
+        console.error("users query error:", userErr, { chunk });
+        return res.status(500).json({ message: "DB error reading users" });
+      }
+
+      users = users.concat(chunkUsers || []);
+    }
+
+    return res.json({ members: users });
   } catch (err) {
-    console.error("GET /api/servers/:id/members error", err);
+    console.error("GET /api/servers/:id/members error:", err);
     return res.status(500).json({ message: "Ошибка получения участников" });
   }
 });
