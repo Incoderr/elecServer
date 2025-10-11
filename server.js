@@ -24,7 +24,7 @@ const io = socketIo(server, {
 app.use(express.json());
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'https://tauriapp.vercel.app'],
+    origin: ["http://localhost:5173", "https://tauriapp.vercel.app"],
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -67,14 +67,12 @@ app.post(
         process.env.JWT_SECRET,
         { expiresIn: "7d" }
       );
-      return res
-        .status(201)
-        .json({
-          message: "OK",
-          token,
-          username: newUser.username,
-          id: newUser.id,
-        });
+      return res.status(201).json({
+        message: "OK",
+        token,
+        username: newUser.username,
+        id: newUser.id,
+      });
     } catch (err) {
       console.error(err);
       return res.status(500).json({ message: "Ошибка сервера" });
@@ -281,9 +279,7 @@ app.get("/api/servers/:id/members", async (req, res) => {
       return res.status(500).json({ message: "DB error reading memberships" });
     }
 
-    const userIds = (memberships || [])
-      .map((m) => m.user_id)
-      .filter(Boolean);
+    const userIds = (memberships || []).map((m) => m.user_id).filter(Boolean);
 
     if (userIds.length === 0) {
       return res.json({ members: [] });
@@ -299,7 +295,7 @@ app.get("/api/servers/:id/members", async (req, res) => {
       const chunk = uniq.slice(i, i + chunkSize);
       const { data: chunkUsers, error: userErr } = await supabase
         .from("users")
-        .select("id, username")
+        .select("id, username, avatar")
         .in("id", chunk);
 
       if (userErr) {
@@ -314,6 +310,30 @@ app.get("/api/servers/:id/members", async (req, res) => {
   } catch (err) {
     console.error("GET /api/servers/:id/members error:", err);
     return res.status(500).json({ message: "Ошибка получения участников" });
+  }
+});
+
+app.post("/api/user/avatar", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
+  const token = authHeader.split(" ")[1];
+  const { avatar } = req.body;
+  if (!avatar) return res.status(400).json({ message: "No avatar provided" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { data, error } = await supabase
+      .from("users")
+      .update({ avatar })
+      .eq("id", decoded.userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json({ user: data });
+  } catch (err) {
+    console.error("POST /api/user/avatar error", err);
+    return res.status(500).json({ message: "Ошибка обновления аватара" });
   }
 });
 
