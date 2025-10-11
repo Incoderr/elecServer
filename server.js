@@ -299,7 +299,7 @@ app.get("/api/servers/:id/members", async (req, res) => {
       const chunk = uniq.slice(i, i + chunkSize);
       const { data: chunkUsers, error: userErr } = await supabase
         .from("users")
-        .select("id, username, avatar, avatar_url, status, online")
+        .select("id, username")
         .in("id", chunk);
 
       if (userErr) {
