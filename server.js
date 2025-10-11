@@ -340,51 +340,84 @@ app.post("/api/user/avatar", async (req, res) => {
   }
 });
 
-app.post("/api/user/avatar/upload", upload.single("avatar"), async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
-  const token = authHeader.split(" ")[1];
-  if (!req.file) return res.status(400).json({ message: "No file" });
+app.post(
+  "/api/user/avatar/upload",
+  upload.single("avatar"),
+  async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
+    const token = authHeader.split(" ")[1];
+    if (!req.file) return res.status(400).json({ message: "No file" });
 
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const file = req.file;
+      const ext = path.extname(file.originalname) || "";
+      const filePath = `avatars/${decoded.userId}-${Date.now()}${ext}`;
+
+      // Загружаем буфер в Supabase Storage (service role key на сервере)
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("Supabase upload error:", uploadError);
+        return res
+          .status(500)
+          .json({ message: "Storage upload error", detail: uploadError });
+      }
+
+      const { data: publicData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+      const publicUrl = publicData?.publicUrl || null;
+
+      // Сохраняем URL в таблице users
+      const { data: userData, error: updateErr } = await supabase
+        .from("users")
+        .update({ avatar: publicUrl })
+        .eq("id", decoded.userId)
+        .select()
+        .single();
+
+      if (updateErr) {
+        console.error("DB update error:", updateErr);
+        return res
+          .status(500)
+          .json({ message: "DB update error", detail: updateErr });
+      }
+
+      return res.json({ avatar: publicUrl, user: userData });
+    } catch (err) {
+      console.error("POST /api/user/avatar/upload error", err);
+      return res.status(500).json({ message: "Ошибка обновления аватара" });
+    }
+  }
+);
+
+app.get("/api/servers/:serverId/members", async (req, res) => {
+  const { serverId } = req.params;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const file = req.file;
-    const ext = path.extname(file.originalname) || "";
-    const filePath = `avatars/${decoded.userId}-${Date.now()}${ext}`;
+    const { data: members, error } = await supabase
+      .from("server_members")
+      .select("user_id, users!inner(id, username, avatar)")
+      .eq("server_id", serverId);
 
-    // Загружаем буфер в Supabase Storage (service role key на сервере)
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
+    if (error) throw error;
 
-    if (uploadError) {
-      console.error("Supabase upload error:", uploadError);
-      return res.status(500).json({ message: "Storage upload error", detail: uploadError });
-    }
+    const formattedMembers = members.map((m) => ({
+      id: m.user_id,
+      username: m.users.username,
+      avatar: m.users.avatar,
+    }));
 
-    const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    const publicUrl = publicData?.publicUrl || null;
-
-    // Сохраняем URL в таблице users
-    const { data: userData, error: updateErr } = await supabase
-      .from("users")
-      .update({ avatar: publicUrl })
-      .eq("id", decoded.userId)
-      .select()
-      .single();
-
-    if (updateErr) {
-      console.error("DB update error:", updateErr);
-      return res.status(500).json({ message: "DB update error", detail: updateErr });
-    }
-
-    return res.json({ avatar: publicUrl, user: userData });
+    res.json({ members: formattedMembers });
   } catch (err) {
-    console.error("POST /api/user/avatar/upload error", err);
-    return res.status(500).json({ message: "Ошибка обновления аватара" });
+    console.error("Load members error:", err);
+    res.status(500).json({ message: "Ошибка загрузки членов" });
   }
 });
 
@@ -424,6 +457,7 @@ io.on("connection", (socket) => {
             channel_id: channelId,
             user_id: socket.user.userId,
             username: socket.user.username,
+            avatar: user?.avatar || null,
             content,
           },
         ])

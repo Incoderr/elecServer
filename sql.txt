@@ -32,6 +32,31 @@ create table messages (
   channel_id uuid references channels(id),
   user_id uuid references users(id),
   username text,
+  avatar text,
   content text,
   created_at timestamptz default now()
 );
+
+//storage policy
+
+CREATE POLICY "Allow public upload to avatars with userId"
+ON storage.objects
+FOR INSERT
+TO public
+WITH CHECK (
+  bucket_id = 'avatars' AND
+  name LIKE 'avatars/%'  -- Убедимся, что путь начинается с avatars/
+);
+
+CREATE POLICY "Public read avatars"
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'avatars');
+
+CREATE POLICY "Allow public update avatars"
+ON storage.objects
+FOR UPDATE
+TO public
+USING (bucket_id = 'avatars')
+WITH CHECK (bucket_id = 'avatars' AND name LIKE 'avatars/%');
