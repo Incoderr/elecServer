@@ -8,6 +8,7 @@ const { body, validationResult } = require("express-validator");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
+const path = require("path");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
