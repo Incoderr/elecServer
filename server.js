@@ -204,22 +204,27 @@ app.get("/api/servers/:id", async (req, res) => {
   }
 });
 
-// Get messages for channel
 app.get(
   "/api/servers/:serverId/channels/:channelId/messages",
   async (req, res) => {
     const { serverId, channelId } = req.params;
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
+    const token = authHeader.split(" ")[1];
     try {
-      const { data: messages } = await supabase
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      // Проверка доступа (опционально: убедитесь, что пользователь в сервере)
+      const { data: messagesData, error } = await supabase
         .from("messages")
-        .select("*")
+        .select("id, content, created_at, username, avatar") // С avatar
         .eq("server_id", serverId)
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true });
-      res.json({ messages });
+      if (error) throw error;
+      res.json({ messages: messagesData });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Ошибка" });
+      console.error("Load messages error:", err);
+      res.status(500).json({ message: "Ошибка загрузки сообщений" });
     }
   }
 );
