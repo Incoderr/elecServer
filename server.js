@@ -533,6 +533,12 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("typing", ({ serverId, channelId }) => {
+    const room = `${serverId}:${channelId}`;
+    // Отправляем только другим в комнате (не отправителю)
+    socket.to(room).emit("user typing", { username: socket.user.username });
+  });
+
   socket.on("disconnect", () => {
     console.log("disconnected", socket.user?.username);
   });
