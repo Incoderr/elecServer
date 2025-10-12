@@ -453,8 +453,20 @@ io.on("connection", (socket) => {
 
   socket.on("chat message", async ({ serverId, channelId, content }) => {
     try {
-      // persist in Supabase
-      const { data: msg } = await supabase
+      // Получить avatar пользователя из таблицы users
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("avatar")
+        .eq("id", socket.user.userId)
+        .single();
+
+      if (userError) {
+        console.error("Error fetching user avatar:", userError);
+        throw userError; // Или обработайте ошибку по-другому
+      }
+
+      // Теперь persist in Supabase с полученным avatar
+      const { data: msg, error: insertError } = await supabase
         .from("messages")
         .insert([
           {
@@ -462,12 +474,17 @@ io.on("connection", (socket) => {
             channel_id: channelId,
             user_id: socket.user.userId,
             username: socket.user.username,
-            avatar: user?.avatar || null,
+            avatar: user?.avatar || null, // Используем полученный avatar
             content,
           },
         ])
         .select()
         .single();
+
+      if (insertError) {
+        console.error("Insert message error:", insertError);
+        throw insertError;
+      }
 
       const room = `${serverId}:${channelId}`;
       io.to(room).emit("chat message", msg);
