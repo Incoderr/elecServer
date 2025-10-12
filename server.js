@@ -89,7 +89,7 @@ app.post("/login", async (req, res) => {
   try {
     const { data: user } = await supabase
       .from("users")
-      .select("*")
+      .select("id, username, password, avatar")
       .eq("username", username)
       .single();
     if (!user) return res.status(400).json({ message: "Неверный никнейм" });
@@ -100,7 +100,7 @@ app.post("/login", async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-    res.json({ message: "OK", token, username: user.username, id: user.id });
+    res.json({ message: "OK", token, username: user.username, id: user.id, avatar: user.avatar });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Ошибка сервера" });
