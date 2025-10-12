@@ -230,8 +230,24 @@ app.get(
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log("Decoded token:", decoded); // Лог успешного декода
+      console.log("Decoded token:", decoded.userId, decoded.username);
 
+      // Проверка, что пользователь является членом сервера (опционально, но рекомендуется)
+      const { data: membership, error: membershipError } = await supabase
+        .from("server_members")
+        .select("id")
+        .eq("server_id", serverId)
+        .eq("user_id", decoded.userId)
+        .single();
+
+      if (membershipError || !membership) {
+        console.log("User not in server - returning 401");
+        return res
+          .status(401)
+          .json({ message: "Unauthorized: Not a member of this server" });
+      }
+
+      // Запрос сообщений
       const { data: messagesData, error } = await supabase
         .from("messages")
         .select("id, content, created_at, username, avatar")
@@ -239,11 +255,15 @@ app.get(
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase query error:", error.message);
+        throw error;
+      }
 
+      console.log("Messages fetched successfully, count:", messagesData.length);
       res.json({ messages: messagesData });
     } catch (err) {
-      console.error("Token verification error:", err.message, err.name); // Детальный лог ошибки
+      console.error("Messages endpoint error:", err.message, err.name);
       res.status(401).json({ message: "Unauthorized", detail: err.message });
     }
   }
