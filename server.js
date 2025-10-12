@@ -209,22 +209,42 @@ app.get(
   async (req, res) => {
     const { serverId, channelId } = req.params;
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
+    console.log(
+      "Messages request: serverId=",
+      serverId,
+      "channelId=",
+      channelId,
+      "authHeader=",
+      authHeader || "none"
+    );
+
+    if (!authHeader) {
+      console.log("No auth header - returning 401");
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: No token provided" });
+    }
+
     const token = authHeader.split(" ")[1];
+    console.log("Extracted token:", token ? "present" : "absent");
+
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      // Проверка доступа (опционально: убедитесь, что пользователь в сервере)
+      console.log("Decoded token:", decoded); // Лог успешного декода
+
       const { data: messagesData, error } = await supabase
         .from("messages")
-        .select("id, content, created_at, username, avatar") // С avatar
+        .select("id, content, created_at, username, avatar")
         .eq("server_id", serverId)
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true });
+
       if (error) throw error;
+
       res.json({ messages: messagesData });
     } catch (err) {
-      console.error("Load messages error:", err);
-      res.status(500).json({ message: "Ошибка загрузки сообщений" });
+      console.error("Token verification error:", err.message, err.name); // Детальный лог ошибки
+      res.status(401).json({ message: "Unauthorized", detail: err.message });
     }
   }
 );
