@@ -256,7 +256,9 @@ app.get(
       // Запрос сообщений
       const { data: messagesData, error } = await supabase
         .from("messages")
-        .select("id, content, created_at, username, avatar, og_site_name, og_title, og_description, og_image, og_url")
+        .select(
+          "id, content, created_at, username, avatar, og_site_name, og_title, og_description, og_image, og_url"
+        )
         .eq("server_id", serverId)
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true });
@@ -517,19 +519,31 @@ io.on("connection", (socket) => {
 
       let ogData = {};
       if (url) {
-        const { result } = await ogs({ url });
-        if (result.success) {
-          ogData = {
-            og_site_name: result.ogSiteName,
-            og_title: result.ogTitle,
-            og_description: result.ogDescription,
-            og_image: result.ogImage?.[0]?.url || result.ogImage?.url,
-            og_url: result.requestUrl || url,
-          };
+        // Проверяем, является ли URL прямой ссылкой на GIF — если да, пропускаем ogs
+        const isGifUrl =
+          url.match(/\.gif(\?.*)?$/i) ||
+          url.includes("tenor") ||
+          url.includes("giphy");
+        if (!isGifUrl) {
+          try {
+            const { result } = await ogs({ url });
+            if (result.success) {
+              ogData = {
+                og_site_name: result.ogSiteName,
+                og_title: result.ogTitle,
+                og_description: result.ogDescription,
+                og_image: result.ogImage?.[0]?.url || result.ogImage?.url,
+                og_url: result.requestUrl || url,
+              };
+            }
+          } catch (ogsErr) {
+            console.error("OGS error for URL:", url, ogsErr.message);
+            // Не прерываем выполнение — продолжаем без OG
+          }
         }
       }
 
-      // Теперь persist in Supabase с полученным avatar
+      // Теперь insert в БД всегда выполняется, даже если ogs упал или пропущен
       const { data: msg, error: insertError } = await supabase
         .from("messages")
         .insert([

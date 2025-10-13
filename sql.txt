@@ -34,6 +34,7 @@ create table messages (
   username text,
   avatar text,
   content text,
+  og_site_name text,
   og_title text,
   og_description text,
   og_image text,
