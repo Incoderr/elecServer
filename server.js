@@ -256,7 +256,7 @@ app.get(
       // Запрос сообщений
       const { data: messagesData, error } = await supabase
         .from("messages")
-        .select("id, content, created_at, username, avatar, og_title, og_description, og_image, og_url")
+        .select("id, content, created_at, username, avatar, og_site_name, og_title, og_description, og_image, og_url")
         .eq("server_id", serverId)
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true });
@@ -520,6 +520,7 @@ io.on("connection", (socket) => {
         const { result } = await ogs({ url });
         if (result.success) {
           ogData = {
+            og_site_name: result.ogSiteName,
             og_title: result.ogTitle,
             og_description: result.ogDescription,
             og_image: result.ogImage?.[0]?.url || result.ogImage?.url,
@@ -539,6 +540,7 @@ io.on("connection", (socket) => {
             username: socket.user.username,
             avatar: user?.avatar || null,
             content,
+            og_site_name: ogData.og_site_name || null,
             og_title: ogData.og_title || null,
             og_description: ogData.og_description || null,
             og_image: ogData.og_image || null,
