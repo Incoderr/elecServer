@@ -519,25 +519,32 @@ io.on("connection", (socket) => {
 
       let ogData = {};
       if (url) {
-        const { result } = await ogs({
-          url,
-          timeout: 10000,
-          customMetaTags: [{ userAgent: "Mozilla/5.0" }],
-        });
-        if (result.success) {
-          const image = Array.isArray(result.ogImage)
+        try {
+          console.log("Attempting to scrape OG for URL:", url);
+          const { result } = await ogs({
+            url,
+            timeout: 10000,
+            customMetaTags: [
+              { userAgent: "Mozilla/5.0" },
+            ],
+          });
+          console.log("OG result:", result);
+          if (result.success) {
+            const image = Array.isArray(result.ogImage)
               ? result.ogImage[0]?.url
-              : result.ogImage?.url; 
-          ogData = {
-            og_title: result.ogTitle,
-            og_description: result.ogDescription,
-            og_image: image,
-            og_url: result.requestUrl || url,
-          };
+              : result.ogImage?.url || result.twitterImage?.url;
+            ogData = {
+              og_title: result.ogTitle,
+              og_description: result.ogDescription,
+              og_image: image,
+              og_url: result.requestUrl || url,
+            };
+          }
+        } catch (ogError) {
+          console.error("OG scrape error:", ogError);
         }
       }
 
-      // Теперь persist in Supabase с полученным avatar
       const { data: msg, error: insertError } = await supabase
         .from("messages")
         .insert([
