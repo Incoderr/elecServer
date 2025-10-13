@@ -522,7 +522,7 @@ io.on("connection", (socket) => {
           ogData = {
             og_title: result.ogTitle,
             og_description: result.ogDescription,
-            og_image: result.ogImage?.url,
+            og_image: result.ogImage,
             og_url: result.requestUrl || url,
           };
         }

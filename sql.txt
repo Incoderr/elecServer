@@ -34,6 +34,10 @@ create table messages (
   username text,
   avatar text,
   content text,
+  og_title text,
+  og_description text,
+  og_image text,
+  og_url text
   created_at timestamptz default now()
 );
 
