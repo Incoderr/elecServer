@@ -256,7 +256,7 @@ app.get(
       // Запрос сообщений
       const { data: messagesData, error } = await supabase
         .from("messages")
-        .select("id, content, created_at, username, avatar")
+        .select("id, content, created_at, username, avatar, og_title, og_description, og_image, og_url")
         .eq("server_id", serverId)
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true });
