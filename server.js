@@ -256,9 +256,7 @@ app.get(
       // Запрос сообщений
       const { data: messagesData, error } = await supabase
         .from("messages")
-        .select(
-          "id, content, created_at, username, avatar, og_title, og_description, og_image, og_url"
-        )
+        .select("id, content, created_at, username, avatar, og_title, og_description, og_image, og_url")
         .eq("server_id", serverId)
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true });
@@ -519,32 +517,18 @@ io.on("connection", (socket) => {
 
       let ogData = {};
       if (url) {
-        try {
-          console.log("Attempting to scrape OG for URL:", url);
-          const { result } = await ogs({
-            url,
-            timeout: 10000,
-            customMetaTags: [
-              { userAgent: "Mozilla/5.0" },
-            ],
-          });
-          console.log("OG result:", result);
-          if (result.success) {
-            const image = Array.isArray(result.ogImage)
-              ? result.ogImage[0]?.url
-              : result.ogImage?.url || result.twitterImage?.url;
-            ogData = {
-              og_title: result.ogTitle,
-              og_description: result.ogDescription,
-              og_image: image,
-              og_url: result.requestUrl || url,
-            };
-          }
-        } catch (ogError) {
-          console.error("OG scrape error:", ogError);
+        const { result } = await ogs({ url });
+        if (result.success) {
+          ogData = {
+            og_title: result.ogTitle,
+            og_description: result.ogDescription,
+            og_image: result.ogImage?.[0]?.url || result.ogImage?.url,
+            og_url: result.requestUrl || url,
+          };
         }
       }
 
+      // Теперь persist in Supabase с полученным avatar
       const { data: msg, error: insertError } = await supabase
         .from("messages")
         .insert([
