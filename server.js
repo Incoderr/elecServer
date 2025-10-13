@@ -525,8 +525,9 @@ io.on("connection", (socket) => {
           customMetaTags: [{ userAgent: "Mozilla/5.0" }],
         });
         if (result.success) {
-          const image = Array.isArray(result.ogImage);
-          result.ogImage[0]?.url;
+          const image = Array.isArray(result.ogImage)
+              ? result.ogImage[0]?.url
+              : result.ogImage?.url; 
           ogData = {
             og_title: result.ogTitle,
             og_description: result.ogDescription,
