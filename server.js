@@ -1,4 +1,3 @@
-// ...existing code...
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
@@ -11,6 +10,7 @@ const { createClient } = require("@supabase/supabase-js");
 const path = require("path");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
+const ogs = require("open-graph-scraper");
 
 dotenv.config();
 
@@ -100,7 +100,13 @@ app.post("/login", async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-    res.json({ message: "OK", token, username: user.username, id: user.id, avatar: user.avatar });
+    res.json({
+      message: "OK",
+      token,
+      username: user.username,
+      id: user.id,
+      avatar: user.avatar,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Ошибка сервера" });
@@ -505,6 +511,23 @@ io.on("connection", (socket) => {
         throw userError; // Или обработайте ошибку по-другому
       }
 
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const match = content.match(urlRegex);
+      const url = match ? match[0] : null;
+
+      let ogData = {};
+      if (url) {
+        const { result } = await ogs({ url });
+        if (result.success) {
+          ogData = {
+            og_title: result.ogTitle,
+            og_description: result.ogDescription,
+            og_image: result.ogImage?.url,
+            og_url: result.requestUrl || url,
+          };
+        }
+      }
+
       // Теперь persist in Supabase с полученным avatar
       const { data: msg, error: insertError } = await supabase
         .from("messages")
@@ -514,8 +537,12 @@ io.on("connection", (socket) => {
             channel_id: channelId,
             user_id: socket.user.userId,
             username: socket.user.username,
-            avatar: user?.avatar || null, // Используем полученный avatar
+            avatar: user?.avatar || null,
             content,
+            og_title: ogData.og_title || null,
+            og_description: ogData.og_description || null,
+            og_image: ogData.og_image || null,
+            og_url: ogData.og_url || null,
           },
         ])
         .select()
