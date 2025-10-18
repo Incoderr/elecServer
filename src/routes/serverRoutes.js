@@ -146,7 +146,7 @@ router.get("/api/servers/:serverId/channels/:channelId/messages", async (req, re
     const { data: messagesData, error } = await supabase
       .from("messages")
       .select(
-        "id, content, created_at, username, avatar, og_site_name, og_title, og_description, og_image, og_url"
+        "id, content, created_at, username, avatar, og_*, replied_to_id, replied_to!messages_replied_to_id_fkey(content, username)"
       )
       .eq("server_id", serverId)
       .eq("channel_id", channelId)
