@@ -111,10 +111,13 @@ const setupSocketHandlers = (io) => {
             });
           }
 
-          // Обновляем сообщение
+          // Обновляем сообщение с текущей датой и временем
           const { data: updatedMsg, error: updateError } = await supabase
             .from("messages")
-            .update({ content: newContent, updated_at: new Date() }) // Добавьте поле updated_at в DB, если нужно
+            .update({
+              content: newContent,
+              updated_at: new Date().toISOString(), // Используем ISO формат
+            })
             .eq("id", messageId)
             .select()
             .single();
@@ -122,7 +125,7 @@ const setupSocketHandlers = (io) => {
           if (updateError) throw updateError;
 
           const room = `${serverId}:${channelId}`;
-          io.to(room).emit("message updated", updatedMsg); // Новое событие для обновления
+          io.to(room).emit("message updated", updatedMsg);
         } catch (err) {
           console.error("edit message error", err);
           socket.emit("error", { message: "Ошибка редактирования" });

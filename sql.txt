@@ -38,7 +38,7 @@ create table messages (
   og_title text,
   og_description text,
   og_image text,
-  og_url text
+  og_url text,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   replied_to_id uuid references messages(id) on delete set null
@@ -51,6 +51,11 @@ BEGIN
    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_messages_updated_at
+BEFORE UPDATE ON messages
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
 
 //storage policy
 
