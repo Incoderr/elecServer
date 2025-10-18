@@ -1,8 +1,8 @@
 const jwt = require("jsonwebtoken");
 const { supabase } = require("../config/supabase");
-const { scrapeOG } = require("../utils/ogScraper");
+const { scrapeOgData } = require("../utils/ogScraper");
 
-const setupSocket = (io) => {
+const setupSocketHandlers = (io) => {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error("Токен обязателен"));
@@ -11,7 +11,7 @@ const setupSocket = (io) => {
       socket.user = decoded;
       next();
     } catch (err) {
-      next(new元年Error("Аутентификация не удалась"));
+      next(new Error("Аутентификация не удалась"));
     }
   });
 
@@ -29,13 +29,17 @@ const setupSocket = (io) => {
 
     socket.on("chat message", async ({ serverId, channelId, content }) => {
       try {
+        // Получить avatar пользователя из таблицы users
         const { data: user, error: userError } = await supabase
           .from("users")
           .select("avatar")
           .eq("id", socket.user.userId)
           .single();
 
-        if (userError) throw userError;
+        if (userError) {
+          console.error("Error fetching user avatar:", userError);
+          throw userError; // Или обработайте ошибку по-другому
+        }
 
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const match = content.match(urlRegex);
@@ -43,15 +47,17 @@ const setupSocket = (io) => {
 
         let ogData = {};
         if (url) {
+          // Проверяем, является ли URL прямой ссылкой на GIF — если да, пропускаем ogs
           const isGifUrl =
             url.match(/\.gif(\?.*)?$/i) ||
             url.includes("tenor") ||
             url.includes("giphy");
           if (!isGifUrl) {
-            ogData = await scrapeOG(url);
+            ogData = await scrapeOgData(url);
           }
         }
 
+        // Теперь insert в БД всегда выполняется, даже если ogs упал или пропущен
         const { data: msg, error: insertError } = await supabase
           .from("messages")
           .insert([
@@ -72,7 +78,10 @@ const setupSocket = (io) => {
           .select()
           .single();
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error("Insert message error:", insertError);
+          throw insertError;
+        }
 
         const room = `${serverId}:${channelId}`;
         io.to(room).emit("chat message", msg);
@@ -83,6 +92,7 @@ const setupSocket = (io) => {
 
     socket.on("typing", ({ serverId, channelId }) => {
       const room = `${serverId}:${channelId}`;
+      // Отправляем только другим в комнате (не отправителю)
       socket.to(room).emit("user typing", { username: socket.user.username });
     });
 
@@ -92,4 +102,4 @@ const setupSocket = (io) => {
   });
 };
 
-module.exports = { setupSocket };
+module.exports = { setupSocketHandlers };

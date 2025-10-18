@@ -1,0 +1,19 @@
+# Структура проекта
+.
+├── .env  # Файл с переменными окружения (например, SUPABASE_URL, SUPABASE_KEY, JWT_SECRET, PORT)
+├── package.json  # (предполагается, что он уже есть с зависимостями)
+└── src/
+    ├── index.js  # Основной файл сервера: настройка Express, Socket.IO, Supabase и маршрутов
+    ├── config/
+    │   └── supabase.js  # Инициализация Supabase клиента
+    ├── utils/
+    │   ├── auth.js  # Утилита для верификации JWT-токена
+    │   └── ogScraper.js  # Утилита для извлечения Open Graph данных
+    ├── middleware/
+    │   └── multer.js  # Настройка Multer для загрузки файлов
+    ├── routes/
+    │   ├── authRoutes.js  # Маршруты для регистрации и логина
+    │   ├── serverRoutes.js  # Маршруты для серверов (создание, присоединение, получение данных)
+    │   └── userRoutes.js  # Маршруты для пользователей (обновление аватара)
+    └── sockets/
+        └── socketHandlers.js  # Обработчики Socket.IO событий

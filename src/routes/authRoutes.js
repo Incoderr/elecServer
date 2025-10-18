@@ -1,11 +1,12 @@
 const express = require("express");
-const { body, validationResult } = require("express-validator");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { body, validationResult } = require("express-validator");
 const { supabase } = require("../config/supabase");
 
 const router = express.Router();
 
+// Регистрация в Supabase.users (локальная регистрация, не Supabase Auth)
 router.post(
   "/register",
   [
@@ -21,6 +22,7 @@ router.post(
 
     const { username, password } = req.body;
     try {
+      // Проверка существующего
       const { data: existing } = await supabase
         .from("users")
         .select("*")
@@ -54,6 +56,7 @@ router.post(
   }
 );
 
+// Логин (проверка по таблице users)
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
   try {

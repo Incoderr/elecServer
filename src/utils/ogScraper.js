@@ -1,6 +1,6 @@
 const ogs = require("open-graph-scraper");
 
-const scrapeOG = async (url) => {
+const scrapeOgData = async (url) => {
   try {
     const { result } = await ogs({ url });
     if (result.success) {
@@ -19,4 +19,4 @@ const scrapeOG = async (url) => {
   }
 };
 
-module.exports = { scrapeOG };
+module.exports = { scrapeOgData };
