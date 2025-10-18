@@ -27,68 +27,108 @@ const setupSocketHandlers = (io) => {
       socket.leave(`${serverId}:${channelId}`);
     });
 
-    socket.on("chat message", async ({ serverId, channelId, content }) => {
-      try {
-        // Получить avatar пользователя из таблицы users
-        const { data: user, error: userError } = await supabase
-          .from("users")
-          .select("avatar")
-          .eq("id", socket.user.userId)
-          .single();
+    socket.on(
+      "chat message",
+      async ({ serverId, channelId, content, replied_to_id }) => {
+        try {
+          // Получить avatar пользователя из таблицы users
+          const { data: user, error: userError } = await supabase
+            .from("users")
+            .select("avatar")
+            .eq("id", socket.user.userId)
+            .single();
 
-        if (userError) {
-          console.error("Error fetching user avatar:", userError);
-          throw userError; // Или обработайте ошибку по-другому
-        }
-
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const match = content.match(urlRegex);
-        const url = match ? match[0] : null;
-
-        let ogData = {};
-        if (url) {
-          // Проверяем, является ли URL прямой ссылкой на GIF — если да, пропускаем ogs
-          const isGifUrl =
-            url.match(/\.gif(\?.*)?$/i) ||
-            url.includes("tenor") ||
-            url.includes("giphy");
-          if (!isGifUrl) {
-            ogData = await scrapeOgData(url);
+          if (userError) {
+            console.error("Error fetching user avatar:", userError);
+            throw userError; // Или обработайте ошибку по-другому
           }
+
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
+          const match = content.match(urlRegex);
+          const url = match ? match[0] : null;
+
+          let ogData = {};
+          if (url) {
+            // Проверяем, является ли URL прямой ссылкой на GIF — если да, пропускаем ogs
+            const isGifUrl =
+              url.match(/\.gif(\?.*)?$/i) ||
+              url.includes("tenor") ||
+              url.includes("giphy");
+            if (!isGifUrl) {
+              ogData = await scrapeOgData(url);
+            }
+          }
+
+          // Теперь insert в БД всегда выполняется, даже если ogs упал или пропущен
+          const { data: msg, error: insertError } = await supabase
+            .from("messages")
+            .insert([
+              {
+                server_id: serverId,
+                channel_id: channelId,
+                user_id: socket.user.userId,
+                username: socket.user.username,
+                avatar: user?.avatar || null,
+                content,
+                replied_to_id: replied_to_id || null,
+                og_site_name: ogData.og_site_name || null,
+                og_title: ogData.og_title || null,
+                og_description: ogData.og_description || null,
+                og_image: ogData.og_image || null,
+                og_url: ogData.og_url || null,
+              },
+            ])
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error("Insert message error:", insertError);
+            throw insertError;
+          }
+
+          const room = `${serverId}:${channelId}`;
+          io.to(room).emit("chat message", msg);
+        } catch (err) {
+          console.error("save message error", err);
         }
-
-        // Теперь insert в БД всегда выполняется, даже если ogs упал или пропущен
-        const { data: msg, error: insertError } = await supabase
-          .from("messages")
-          .insert([
-            {
-              server_id: serverId,
-              channel_id: channelId,
-              user_id: socket.user.userId,
-              username: socket.user.username,
-              avatar: user?.avatar || null,
-              content,
-              og_site_name: ogData.og_site_name || null,
-              og_title: ogData.og_title || null,
-              og_description: ogData.og_description || null,
-              og_image: ogData.og_image || null,
-              og_url: ogData.og_url || null,
-            },
-          ])
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error("Insert message error:", insertError);
-          throw insertError;
-        }
-
-        const room = `${serverId}:${channelId}`;
-        io.to(room).emit("chat message", msg);
-      } catch (err) {
-        console.error("save message error", err);
       }
-    });
+    );
+
+    socket.on(
+      "edit message",
+      async ({ serverId, channelId, messageId, newContent }) => {
+        try {
+          // Проверяем, что пользователь — автор сообщения
+          const { data: msgCheck, error: checkError } = await supabase
+            .from("messages")
+            .select("user_id")
+            .eq("id", messageId)
+            .single();
+
+          if (checkError || msgCheck.user_id !== socket.user.userId) {
+            return socket.emit("error", {
+              message: "Вы не можете редактировать это сообщение",
+            });
+          }
+
+          // Обновляем сообщение
+          const { data: updatedMsg, error: updateError } = await supabase
+            .from("messages")
+            .update({ content: newContent, updated_at: new Date() }) // Добавьте поле updated_at в DB, если нужно
+            .eq("id", messageId)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+
+          const room = `${serverId}:${channelId}`;
+          io.to(room).emit("message updated", updatedMsg); // Новое событие для обновления
+        } catch (err) {
+          console.error("edit message error", err);
+          socket.emit("error", { message: "Ошибка редактирования" });
+        }
+      }
+    );
 
     socket.on("typing", ({ serverId, channelId }) => {
       const room = `${serverId}:${channelId}`;

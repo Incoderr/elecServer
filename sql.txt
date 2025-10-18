@@ -39,8 +39,18 @@ create table messages (
   og_description text,
   og_image text,
   og_url text
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  replied_to_id uuid references messages(id) on delete set null
 );
+
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = NOW();
+   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 //storage policy
 
@@ -50,7 +60,7 @@ FOR INSERT
 TO public
 WITH CHECK (
   bucket_id = 'avatars' AND
-  name LIKE 'avatars/%'  -- Убедимся, что путь начинается с avatars/
+  name LIKE 'avatars/%'
 );
 
 CREATE POLICY "Public read avatars"
