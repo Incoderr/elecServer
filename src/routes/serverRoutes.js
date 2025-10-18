@@ -160,8 +160,8 @@ router.get(
         og_description,
         og_image,
         og_url,
-        replied_to_id,
-        replied_to:messages_replied_to_id_fkey(content, username)
+        replied_to_id,  
+        replied_to:replied_to_id(content, username)
         `
         )
         .eq("server_id", serverId)
