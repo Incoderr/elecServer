@@ -49,12 +49,15 @@ const setupSocketHandlers = (io) => {
 
           let ogData = {};
           if (url) {
-            // Проверяем, является ли URL прямой ссылкой на GIF — если да, пропускаем ogs
+      
             const isGifUrl =
               url.match(/\.gif(\?.*)?$/i) ||
               url.includes("tenor") ||
               url.includes("giphy");
-            if (!isGifUrl) {
+
+              const isSpotifyUrl = url.match(/https?:\/\/open\.spotify\.com\/(track|album|artist|playlist)\/[a-zA-Z0-9]+/i);
+
+            if (!isGifUrl && !isSpotifyUrl) {
               ogData = await scrapeOgData(url);
             }
           }
