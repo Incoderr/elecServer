@@ -1,6 +1,6 @@
 const { createClient } = require('redis');
 
-const client = createClient({
+const redisClient = createClient({
   username: 'default',
   password: process.env.REDIS_PASSWORD,
   socket: {
@@ -9,13 +9,13 @@ const client = createClient({
   },
 });
 
-client.on('error', (err) => console.log('Redis Client Error', err));
+redisClient.on('error', (err) => console.log('Redis Client Error', err));
 
-client.connect()
+redisClient.connect()
   .then(() => {
     console.log('Redis connected');
     // Тестовые операции, если нужно
     // return client.set('foo', 'bar').then(() => client.get('foo')).then(console.log);
   })
   .catch(err => console.error('Connection error:', err));
-module.exports = { client };
+module.exports = { redisClient };
