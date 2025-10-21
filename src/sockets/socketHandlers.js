@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { supabase } = require("../config/supabase");
+const { redisClient } = require("../config/redis");
 const { scrapeOgData } = require("../utils/ogScraper");
 
 const setupSocketHandlers = (io) => {
@@ -15,8 +16,22 @@ const setupSocketHandlers = (io) => {
     }
   });
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     console.log("connected", socket.user.username);
+
+    try {
+      await redisClient.hSet("user_statuses", socket.user.userId, "online");
+      await supabase
+        .from("users")
+        .update({ status: "online", last_seen: new Date().toISOString() })
+        .eq("id", socket.user.userId);
+      io.emit("user status changed", {
+        userId: socket.user.userId,
+        status: "online",
+      });
+    } catch (err) {
+      console.error("Set online status error", err);
+    }
 
     socket.on("join channel", ({ serverId, channelId }) => {
       const room = `${serverId}:${channelId}`;
@@ -49,13 +64,14 @@ const setupSocketHandlers = (io) => {
 
           let ogData = {};
           if (url) {
-      
             const isGifUrl =
               url.match(/\.gif(\?.*)?$/i) ||
               url.includes("tenor") ||
               url.includes("giphy");
 
-              const isSpotifyUrl = url.match(/https?:\/\/open\.spotify\.com\/(track|album|artist|playlist)\/[a-zA-Z0-9]+/i);
+            const isSpotifyUrl = url.match(
+              /https?:\/\/open\.spotify\.com\/(track|album|artist|playlist)\/[a-zA-Z0-9]+/i
+            );
 
             if (!isGifUrl && !isSpotifyUrl) {
               ogData = await scrapeOgData(url);
@@ -142,8 +158,39 @@ const setupSocketHandlers = (io) => {
       socket.to(room).emit("user typing", { username: socket.user.username });
     });
 
-    socket.on("disconnect", () => {
+    socket.on("change status", async ({ newStatus }) => {
+      if (!["online", "offline", "idle", "dnd"].includes(newStatus)) return;
+      try {
+        await redisClient.hSet("user_statuses", socket.user.userId, newStatus);
+        await supabase
+          .from("users")
+          .update({ status: newStatus, last_seen: new Date().toISOString() })
+          .eq("id", socket.user.userId);
+        io.emit("user status changed", {
+          userId: socket.user.userId,
+          status: newStatus,
+        });
+      } catch (err) {
+        console.error("Change status error", err);
+      }
+    });
+
+    socket.on("disconnect", async () => {
       console.log("disconnected", socket.user?.username);
+      // Новое: Установка 'offline' в Redis и DB
+      try {
+        await redisClient.hSet("user_statuses", socket.user.userId, "offline");
+        await supabase
+          .from("users")
+          .update({ status: "offline", last_seen: new Date().toISOString() })
+          .eq("id", socket.user.userId);
+        io.emit("user status changed", {
+          userId: socket.user.userId,
+          status: "offline",
+        });
+      } catch (err) {
+        console.error("Set offline status error", err);
+      }
     });
   });
 };

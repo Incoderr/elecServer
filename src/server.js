@@ -7,6 +7,7 @@ const authRoutes = require("./routes/authRoutes");
 const serverRoutes = require("./routes/serverRoutes");
 const userRoutes = require("./routes/userRoutes");
 const { setupSocketHandlers } = require("./sockets/socketHandlers");
+const { redisClient } = require("./config/redis");  // Новое: импорт Redis
 
 dotenv.config();
 
@@ -32,6 +33,12 @@ app.use(userRoutes);
 
 // Настройка Socket.IO
 setupSocketHandlers(io);
+
+// Новое: Graceful shutdown для Redis
+process.on('SIGTERM', async () => {
+  await redisClient.quit();
+  server.close();
+});
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => console.log(`Server listening ${PORT}`));

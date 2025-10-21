@@ -228,6 +228,7 @@ router.get("/api/user/servers", async (req, res) => {
 
 router.get("/api/servers/:id/members", async (req, res) => {
   const serverId = req.params.id;
+  const { redisClient } = require("../config/redis");
   try {
     // Получаем user_id из server_members
     const { data: memberships, error: memErr } = await supabase
@@ -267,7 +268,17 @@ router.get("/api/servers/:id/members", async (req, res) => {
       users = users.concat(chunkUsers || []);
     }
 
-    return res.json({ members: users });
+    const membersWithStatus = await Promise.all(users.map(async (user) => {
+      let status = await redisClient.hGet('user_statuses', user.id);
+      if (!status) {
+        // Fallback из DB
+        const { data: dbUser } = await supabase.from("users").select("status, last_seen").eq("id", user.id).single();
+        status = dbUser?.status || 'offline';
+      }
+      return { ...user, status };
+    }));
+
+    return res.json({ members: membersWithStatus });
   } catch (err) {
     console.error("GET /api/servers/:id/members error:", err);
     return res.status(500).json({ message: "Ошибка получения участников" });

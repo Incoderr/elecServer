@@ -4,6 +4,7 @@ create table users (
   username text unique not null,
   avatar text,
   password text not null
+  status text default 'offline',
 );
 
 create table servers (
